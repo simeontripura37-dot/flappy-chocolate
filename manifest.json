@@ -1,9 +1,16 @@
 {
-  "short_name": "FlappyBrinjal",
-  "name": "Flappy Bird Brinjal Edition",
-  "start_url": "/index.html",
+  "short_name": "FlappyChoc",
+  "name": "Flappy Bird Chocolate Edition",
+  "start_url": "index.html",
   "background_color": "#70c5ce",
   "theme_color": "#70c5ce",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "bird.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
