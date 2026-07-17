@@ -1,22 +1,37 @@
-const CACHE_NAME = 'flappy-chocolate-v1';
+const CACHE_NAME = 'flappy-chocolate-v2';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/sound.js',
-  '/manifest.json',
-  '/bird.png',
-  '/pipe.png',
-  '/chocolate.png', // Updated to chocolate
-  '/sound.mp3',
-  '/logo.png',
-  '/bgm.mp3'
+  './',
+  'index.html',
+  'style.css',
+  'sound.js',
+  'manifest.json',
+  'bird.png',
+  'pipe.png',
+  'chocolate.png',
+  'sound.mp3',
+  'logo.png',
+  'bgm.mp3'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS);
+    })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
     })
   );
 });
