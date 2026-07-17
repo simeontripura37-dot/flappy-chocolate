@@ -1,0 +1,9 @@
+{
+  "short_name": "FlappyBrinjal",
+  "name": "Flappy Bird Brinjal Edition",
+  "start_url": "/index.html",
+  "background_color": "#70c5ce",
+  "theme_color": "#70c5ce",
+  "display": "standalone",
+  "orientation": "portrait"
+}

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flappy Bird - Chocolate Edition</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#70c5ce">
+</head>
+<body>
+    <!-- 1. Splash Screen (Visible for 4 seconds) -->
+    <div id="splash-screen">
+        <img src="logo.png" alt="Logo" class="splash-logo">
+        <div class="splash-title">modio bird</div>
+        <p>made by Simeon Tripura</p>
+    </div>
+
+    <!-- 2. Home Screen Menu (Appears after Splash Screen) -->
+    <div id="home-screen" class="hidden">
+        <div class="menu-box">
+            <h1>FLAPPY CHOCOLATE</h1>
+            <p class="subtitle">modio Edition 🍫</p>
+            <button id="start-btn">START GAME</button>
+        </div>
+    </div>
+
+    <!-- 3. Active Game Canvas -->
+    <div id="game-container">
+        <canvas id="gameCanvas" width="320" height="480"></canvas>
+    </div>
+
+    <script src="sound.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log("Service Worker Registered!"))
+                .catch(err => console.log("Service Worker Failed:", err));
+        }
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let assetsLoadedCount = 0;
+        const REQUIRED_ASSETS = 3; 
+        let assetsLoaded = false;
+
+        function checkAssetsLoaded() {
+            assetsLoadedCount++;
+            if (assetsLoadedCount >= REQUIRED_ASSETS) {
+                assetsLoaded = true;
+            }
+        }
+
+        const birdImg = new Image();
+        birdImg.src = 'bird.png'; 
+        birdImg.onload = checkAssetsLoaded;
+
+        const pipeImg = new Image();
+        pipeImg.src = 'pipe.png';
+        pipeImg.onload = checkAssetsLoaded;
+
+        // NEW: Changed from brinjal.png to chocolate.png
+        const chocolateImg = new Image();
+        chocolateImg.src = 'chocolate.png'; 
+        chocolateImg.onload = checkAssetsLoaded;
+
+        const GRAVITY = 0.25;
+        const FLAP_STRENGTH = -5.3;
+        const SPAWN_RATE = 90;
+        const PIPE_GAP = 130; 
+        const PIPE_WIDTH = 52;
+
+        let bird = { x: 50, y: 150, velocity: 0, radius: 24, width: 64, height: 64, rotation: 0 };
+        let pipes = [];
+        let chocolates = []; // Changed array name
+        let score = 0;
+        let highScore = localStorage.getItem("flappy_highscore") || 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let frameCount = 0;
+
+        // --- SPLASH AND HOME SCREEN CONTROLS ---
+        setTimeout(() => {
+            document.getElementById("splash-screen").style.display = "none";
+            document.getElementById("home-screen").classList.remove("hidden");
+        }, 4000);
+
+        document.getElementById("start-btn").addEventListener("click", () => {
+            document.getElementById("home-screen").style.display = "none";
+            if(typeof initAudio === "function") initAudio();
+            if(typeof playBackgroundMusic === "function") playBackgroundMusic();
+            resetGame();
+        });
+
+        function resetGame() {
+            bird.y = 150;
+            bird.velocity = 0;
+            bird.rotation = 0;
+            pipes = [];
+            chocolates = []; 
+            score = 0;
+            gameOver = false;
+            gameStarted = true;
+            frameCount = 0;
+        }
+
+        function flap() {
+            if (gameStarted && !gameOver) {
+                bird.velocity = FLAP_STRENGTH;
+                if(typeof playSound === "function") playSound('flap');
+            } else if (gameOver) {
+                resetGame();
+                if(typeof playBackgroundMusic === "function") playBackgroundMusic();
+            }
+        }
+
+        window.addEventListener("keydown", (e) => { if (e.code === "Space") flap(); });
+        canvas.addEventListener("touchstart", (e) => { e.preventDefault(); flap(); }, { passive: false });
+        canvas.addEventListener("mousedown", flap);
+
+        function draw() {
+            ctx.fillStyle = "#70c5ce";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (gameStarted && !gameOver) {
+                frameCount++;
+                bird.velocity += GRAVITY;
+                bird.y += bird.velocity;
+
+                if (bird.velocity < 0) {
+                    bird.rotation = -Math.PI / 6;
+                } else if (bird.y < canvas.height - 40 - 20) { 
+                    bird.rotation = Math.min(Math.PI / 2, bird.rotation + 0.05);
+                }
+
+                if (bird.y + bird.radius >= canvas.height - 40 || bird.y - bird.radius <= 0) {
+                    endGame();
+                }
+
+                if (frameCount % SPAWN_RATE === 0) {
+                    let minHeight = 50;
+                    let maxHeight = canvas.height - PIPE_GAP - 100;
+                    let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+                    
+                    pipes.push({ x: canvas.width, topHeight: topHeight, passed: false });
+                    
+                    // Spawn chocolate in the gap
+                    chocolates.push({
+                        x: canvas.width + PIPE_WIDTH / 2 - 12, 
+                        y: topHeight + (PIPE_GAP / 2) - 12,    
+                        width: 24,
+                        height: 24,
+                        collected: false
+                    });
+                }
+
+                for (let i = pipes.length - 1; i >= 0; i--) {
+                    let p = pipes[i];
+                    p.x -= 2;
+
+                    if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + PIPE_WIDTH && 
+                       (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > p.topHeight + PIPE_GAP)) {
+                        endGame();
+                    }
+
+                    if (!p.passed && p.x + PIPE_WIDTH < bird.x) {
+                        score++;
+                        p.passed = true;
+                        if(typeof playSound === "function") playSound('score');
+                        if (score > highScore) {
+                            highScore = score;
+                            localStorage.setItem("flappy_highscore", highScore);
+                        }
+                    }
+                    if (p.x + PIPE_WIDTH < 0) pipes.splice(i, 1);
+                }
+
+                for (let i = chocolates.length - 1; i >= 0; i--) {
+                    let c = chocolates[i];
+                    c.x -= 2; 
+
+                    if (!c.collected && 
+                        bird.x + bird.radius > c.x && bird.x - bird.radius < c.x + c.width && 
+                        bird.y + bird.radius > c.y && bird.y - bird.radius < c.y + c.height) {
+                        
+                        c.collected = true;
+                        score += 3; // +3 points for chocolate!
+                        if(typeof playSound === "function") playSound('score'); 
+                    }
+                    if (c.x + c.width < 0 || c.collected) chocolates.splice(i, 1);
+                }
+            }
+
+            // Draw Pipes
+            if (assetsLoadedCount >= 2) { 
+                pipes.forEach(p => {
+                    ctx.save();
+                    ctx.scale(1, -1);
+                    ctx.drawImage(pipeImg, p.x, -p.topHeight, PIPE_WIDTH, p.topHeight);
+                    ctx.restore();
+                    let bottomY = p.topHeight + PIPE_GAP;
+                    ctx.drawImage(pipeImg, p.x, bottomY, PIPE_WIDTH, canvas.height - bottomY);
+                });
+            } else {
+                pipes.forEach(p => {
+                    ctx.fillStyle = "#73bf2e";
+                    ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topHeight);
+                    let bottomY = p.topHeight + PIPE_GAP;
+                    ctx.fillRect(p.x, bottomY, PIPE_WIDTH, canvas.height - bottomY);
+                });
+            }
+
+            // Draw Chocolates
+            chocolates.forEach(c => {
+                if (!c.collected) {
+                    if (assetsLoadedCount === REQUIRED_ASSETS) {
+                        ctx.drawImage(chocolateImg, c.x, c.y, c.width, c.height);
+                    } else {
+                        // Emoji Fallback
+                        ctx.font = "22px Arial";
+                        ctx.fillText("🍫", c.x, c.y + 18);
+                    }
+                }
+            });
+
+            // Ground Layer
+            ctx.fillStyle = "#ded895";
+            ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+
+            // Draw Bird
+            if (assetsLoadedCount >= 1) {
+                ctx.save();
+                ctx.translate(bird.x, bird.y);
+                ctx.rotate(bird.rotation);
+                ctx.drawImage(birdImg, -bird.width / 2, -bird.height / 2, bird.width, bird.height);
+                ctx.restore();
+            } else {
+                ctx.beginPath();
+                ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "#f8e044"; 
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // Game Over
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#fff";
+                ctx.font = "28px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 50);
+                ctx.font = "18px Arial";
+                ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
+                ctx.fillText(`Best: ${highScore}`, canvas.width / 2, canvas.height / 2 + 30);
+                ctx.font = "14px Arial";
+                ctx.fillText("Tap to Fly Again", canvas.width / 2, canvas.height / 2 + 80);
+            } else if (gameStarted) {
+                ctx.fillStyle = "#fff";
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 4;
+                ctx.font = "bold 32px Arial";
+                ctx.textAlign = "center";
+                ctx.strokeText(score, canvas.width / 2, 50);
+                ctx.fillText(score, canvas.width / 2, 50);
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        function endGame() {
+            if (!gameOver) {
+                if(typeof playSound === "function") playSound('hit');
+                if(typeof stopBackgroundMusic === "function") stopBackgroundMusic();
+            }
+            gameOver = true;
+        }
+
+        draw();
+    </script>
+</body>
+</html>
